@@ -32,6 +32,8 @@ module.exports = function handlePingReq(opts, callback) {
     var changes = opts.changes;
     var checksum = opts.checksum;
 
+    // TODO Deny ping-reqs from damped members
+
     ringpop.serverRate.mark();
     ringpop.totalRate.mark();
     ringpop.membership.update(changes);

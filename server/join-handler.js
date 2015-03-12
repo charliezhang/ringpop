@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 'use strict';
 
+var Member = require('../lib/member.js');
 var TypedError = require('error/typed');
 
 var DenyJoinError = TypedError({
@@ -40,6 +41,18 @@ var InvalidJoinSourceError = TypedError({
         ' The joiner ({actual}) must join someone else.',
     actual: null
 });
+
+function validateDampedness(ringpop, joiner, callback) {
+    var member = ringpop.membership.findMemberByAddress(joiner);
+
+    if (member && member.status === Member.Status.damped) {
+        // TODO Real error
+        callback(DenyJoinError());
+        return false;
+    }
+
+    return true;
+}
 
 function validateDenyingJoins(ringpop, callback) {
     if (ringpop.isDenyingJoins) {
@@ -80,7 +93,8 @@ module.exports = function handleJoin(opts, callback) {
 
     if (!validateDenyingJoins(ringpop, callback) ||
         !validateJoinerAddress(ringpop, opts.source, callback) ||
-        !validateJoinerApp(ringpop, opts.app, callback)) {
+        !validateJoinerApp(ringpop, opts.app, callback) ||
+        !validateDampedness(ringpop, opts.source, callback)) {
         return;
     }
 

@@ -20,6 +20,8 @@
 
 'use strict';
 
+var createAdminMemberHandler = require('./admin-member-handler.js');
+var createDampReqHandler = require('./damp-req-handler.js');
 var handleAdminJoin = require('./admin-join-handler.js');
 var handleAdminLeave = require('./admin-leave-handler.js');
 var handleAdminLookup = require('./admin-lookup-handler.js');
@@ -62,6 +64,9 @@ function RingPopTChannel(ringpop, tchannel) {
 
         tchannel.register(url, self[methodName].bind(self));
     }
+
+    tchannel.register('/admin/member', createAdminMemberHandler(this.ringpop));
+    tchannel.register('/protocol/damp-req', createDampReqHandler(this.ringpop));
 }
 
 RingPopTChannel.prototype.health = function (arg1, arg2, hostInfo, cb) {

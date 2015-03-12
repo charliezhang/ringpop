@@ -19,18 +19,44 @@
 // THE SOFTWARE.
 'use strict';
 
-function Member(address, status, incarnationNumber) {
-    this.address = address;
-    this.status = status;
-    this.incarnationNumber = incarnationNumber;
-}
+var TypedError = require('error/typed');
 
-Member.Status = {
-    alive: 'alive',
-    damped: 'damped',
-    faulty: 'faulty',
-    leave: 'leave',
-    suspect: 'suspect'
+var DampPendingMemberNotFoundError = TypedError({
+    type: 'ringpop.damp-req-handler.member-not-found',
+    message: 'damp-req member not found: {address}',
+    address: null
+});
+
+module.exports = function createDampReqHandler(ringpop) {
+    return function protocolDampReq(head, body, hostInfo, cb) {
+        var jsonBody = safeParse(body);
+
+        if (!jsonBody) {
+            cb(new Error('JSON body is required'));
+            return;
+        }
+
+        if (!jsonBody.dampPendingAddr) {
+            cb(new Error('dampPendingAddr property is required'));
+            return;
+        }
+
+        var dampPendingAddr = jsonBody.dampPendingAddr;
+        var changes = jsonBody.changes;
+
+        ringpop.membership.update(changes);
+
+        var member = ringpop.membership.findMemberByAddress(dampPendingAddr);
+
+        if (!member) {
+            callback(DampPendingMemberNotFoundError({
+                address: dampPendingAddr
+            }));
+            return;
+        }
+
+        callback(null, null, JSON.stringify({
+            dampScore: member.dampScore
+        }));
+    };
 };
-
-module.exports = Member;

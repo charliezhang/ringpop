@@ -32,6 +32,7 @@ var sendPingReq = require('./lib/swim/ping-req-sender.js');
 var Suspicion = require('./lib/swim/suspicion');
 
 var createEventForwarder = require('./lib/event-forwarder.js');
+var createFlapDampingListener = require('./lib/flap-damping');
 var createMembershipSetListener = require('./lib/membership-set-listener.js');
 var createMembershipUpdateListener = require('./lib/membership-update-listener.js');
 var createServer = require('./server');
@@ -102,31 +103,9 @@ function RingPop(options) {
     this.membershipUpdateFlushInterval = options.membershipUpdateFlushInterval ||
         MEMBERSHIP_UPDATE_FLUSH_INTERVAL;
 
-    this.requestProxy = new RequestProxy({
-        ringpop: this,
-        maxRetries: options.requestProxyMaxRetries,
-        retrySchedule: options.requestProxyRetrySchedule
-    });
-
-    this.ring = new HashRing();
-
-    this.dissemination = new Dissemination(this);
-    this.membership = new Membership(this);
-    this.membership.on('set', createMembershipSetListener(this));
-    this.membership.on('updated', createMembershipUpdateListener(this));
-    this.memberIterator = new MembershipIterator(this);
-    this.gossip = new Gossip({
-        ringpop: this,
-        minProtocolPeriod: options.minProtocolPeriod
-    });
-    this.suspicion = new Suspicion({
-        ringpop: this,
-        suspicionTimeout: options.suspicionTimeout
-    });
-    this.membershipUpdateRollup = new MembershipUpdateRollup({
-        ringpop: this,
-        flushInterval: this.membershipUpdateFlushInterval
-    });
+    initMembershipProtocol(this, options);
+    initConsistentHashing(this, options);
+    initForwarding(this, options);
 
     createEventForwarder(this);
 
@@ -145,6 +124,55 @@ function RingPop(options) {
 }
 
 require('util').inherits(RingPop, EventEmitter);
+
+function initConsistentHashing(ringpop) {
+    ringpop.ring = new HashRing();
+}
+
+function gossipParams(ringpop, opts) {
+    return {
+        ringpop: ringpop,
+        minProtocolPeriod: opts.minProtocolPeriod
+    };
+}
+
+function rollupParams(ringpop, opts) {
+    return {
+        ringpop: ringpop,
+        flushInterval: opts.membershipUpdateFlushInterval
+    };
+}
+
+function suspicionParams(ringpop, opts) {
+    return {
+        ringpop: ringpop,
+        suspicionTimeout: opts.suspicionTimeout
+    };
+}
+
+function initMembershipProtocol(ringpop, opts) {
+    ringpop.membership = new Membership(ringpop);
+    ringpop.membership.on('set', createMembershipSetListener(ringpop));
+    ringpop.membership.on('updated', createFlapDampingListener({
+        ringpop: ringpop
+    }));
+    ringpop.membership.on('updated', createMembershipUpdateListener(ringpop));
+
+    ringpop.memberIterator = new MembershipIterator(ringpop);
+    ringpop.dissemination = new Dissemination(ringpop);
+    ringpop.gossip = new Gossip(gossipParams(ringpop, opts));
+    ringpop.suspicion = new Suspicion(suspicionParams(ringpop, opts));
+    ringpop.membershipUpdateRollup = new MembershipUpdateRollup(
+        rollupParams(ringpop, opts));
+}
+
+function initForwarding(ringpop, opts) {
+    ringpop.requestProxy = new RequestProxy({
+        ringpop: ringpop,
+        maxRetries: opts.requestProxyMaxRetries,
+        retrySchedule: opts.requestProxyRetrySchedule
+    });
+}
 
 RingPop.prototype.destroy = function destroy() {
     this.destroyed = true;
@@ -170,6 +198,8 @@ RingPop.prototype.destroy = function destroy() {
     if (this.channel) {
         this.channel.quit();
     }
+
+    this.emit('destroyed');
 };
 
 RingPop.prototype.setupChannel = function setupChannel() {
