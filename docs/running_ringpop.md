@@ -15,15 +15,17 @@ $ npm install
 Then run `tick-cluster`:
 
 ```
-$ ./scripts/tick-cluster.js <size-of-cluster>
+$ ./scripts/tick-cluster.js [-n size-of-cluster] [-i interpreter-that-runs-program] <ringpop-program>
 ```
 
 `tick-cluster` will spawn a child process for each node in the cluster. They will bootstrap themselves using an auto-generated `hosts.json` bootstrap file and converge on a single membership list within seconds. Commands can be issued against the cluster while `tick-cluster` runs. Press `h` or `?` to see which commands are available.
 
+Whenever it is specified, the program is run by an interpreter, otherwise a binary file is expected. The cluster size defaults to 5.
+
 Here's a sample of the output you may see after launching a 5-node cluster with `tick-cluster`:
 
 ```
-$ ./scripts/tick-cluster.js 5
+$ ./scripts/tick-cluster.js -n 5 -i node main.js
 [init] 13:49:57.993 tick-cluster started d: debug flags, g: gossip, j: join, k: kill, K: revive all, l: sleep, p: protocol stats, q: quit, s: cluster stats, t: tick
 [cluster] 13:49:58.001 using 10.80.135.15 to listen
 [init] 13:49:58.036 started 5 procs: 561, 562, 563, 564, 565
